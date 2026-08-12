@@ -80,7 +80,7 @@ const App = () => {
                     columns={[
                       { title: 'Codigo', dataIndex: 'code' },
                       { title: 'Version', dataIndex: 'version' },
-                      { title: 'Hash', dataIndex: 'sha256', render: (value) => <Tag>{String(value)}</Tag> },
+                      { title: 'Hash', dataIndex: 'sha256', render: (value: unknown) => <Tag>{String(value)}</Tag> },
                     ]}
                     pagination={false}
                   />
@@ -103,7 +103,7 @@ const Metric = ({ title, value, icon, loading }: { title: string; value: number;
 const DataCard = ({ title, rows, loading }: { title: string; rows: Record<string, unknown>[]; loading: boolean }) => (
   <Card title={title} loading={loading}>
     <Table
-      rowKey={(_, index) => String(index)}
+      rowKey={(_: Record<string, unknown>, index?: number) => String(index)}
       size="small"
       dataSource={rows}
       columns={columns(rows)}
@@ -114,9 +114,8 @@ const DataCard = ({ title, rows, loading }: { title: string; rows: Record<string
 );
 
 const columns = (rows: Record<string, unknown>[]) => {
-  const keys = Array.from(new Set(rows.flatMap((row) => Object.keys(row)))).slice(0, 5);
+  const keys = Array.from(new Set(rows.flatMap((row) => Object.keys(row)))).slice(0, 7);
   return keys.map((key) => ({ title: key, dataIndex: key, render: (value: unknown) => String(value ?? '-') }));
 };
 
 ReactDOM.createRoot(document.getElementById('root')!).render(<App />);
-
