@@ -312,13 +312,18 @@ const DashboardSection = ({
   const companyUsage = arrayValue(systemOverview.companies);
 
   return (
-    <Space direction="vertical" size="large" style={{ width: '100%' }}>
-      <Alert
-        type="info"
-        showIcon
-        message="Control Plane Central De Regula"
-        description="Consola central para administrar empresas cliente, planes comerciales, instalaciones on-premise, arrendamientos de licencia, catálogos y telemetría agregada. En esta etapa se usa la empresa demo Financiera Santa Clara."
-      />
+    <Space className="observability-dashboard" direction="vertical" size="middle">
+      <div className="observability-toolbar">
+        <div>
+          <div className="observability-kicker">Control Plane Central</div>
+          <Typography.Title level={3} style={{ margin: 0 }}>Regula Multiempresa</Typography.Title>
+          <Typography.Text>Empresas cliente, planes, instalaciones, catálogos y telemetría agregada.</Typography.Text>
+        </div>
+        <Space wrap>
+          <Tag color="success">{activeCompanies} Empresas Activas</Tag>
+          <Tag color="processing">Demo Santa Clara</Tag>
+        </Space>
+      </div>
       <Row gutter={[16, 16]}>
         <Metric title="Carga De Base De Datos" value={numberValue(database.loadPercent)} suffix="%" icon={<DatabaseOutlined />} loading={loading} />
         <Metric title="Latencia API" value={numberValue(latency.avgMs)} suffix="ms" icon={<ApiOutlined />} loading={loading} />
@@ -333,7 +338,7 @@ const DashboardSection = ({
       </Row>
       <Row gutter={[16, 16]}>
         <Col xs={24} xl={15}>
-          <ChartCard title="Tendencia De Tráfico De APIs 24h" loading={loading} empty={trafficTrend.length === 0}>
+          <ChartCard title="Tráfico De APIs" loading={loading} empty={trafficTrend.length === 0}>
             <Line
               data={trafficTrend.flatMap((row) => [
                 { hora: formatHour(row.bucket), tipo: 'API Administración', valor: numberValue(row.api_admin) },

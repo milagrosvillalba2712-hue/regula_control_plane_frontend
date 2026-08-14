@@ -34,3 +34,68 @@ a {
 .control-plane-card-grid {
   width: 100%;
 }
+
+.observability-dashboard {
+  width: 100%;
+  padding: 16px;
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(10, 16, 19, 0.98), rgba(12, 20, 24, 0.96)),
+    radial-gradient(circle at top right, rgba(16, 185, 129, 0.13), transparent 34%);
+  color: #d8e4ea;
+}
+
+.observability-dashboard .ant-card {
+  background: #151d22;
+  border: 1px solid #25323a;
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+.observability-dashboard .ant-card-head {
+  min-height: 42px;
+  border-bottom-color: #25323a;
+}
+
+.observability-dashboard .ant-card-head-title,
+.observability-dashboard .ant-statistic-title,
+.observability-dashboard .ant-typography,
+.observability-dashboard .ant-descriptions-item-label,
+.observability-dashboard .ant-descriptions-item-content,
+.observability-dashboard .ant-table,
+.observability-dashboard .ant-table-cell {
+  color: #d8e4ea;
+}
+
+.observability-dashboard .ant-statistic-content {
+  color: #f4f8fb;
+}
+
+.observability-dashboard .ant-table-wrapper .ant-table,
+.observability-dashboard .ant-table-thead > tr > th,
+.observability-dashboard .ant-table-tbody > tr > td {
+  background: #151d22;
+  border-color: #25323a;
+}
+
+.observability-dashboard .ant-table-tbody > tr.ant-table-row:hover > td {
+  background: #1d2a31;
+}
+
+.observability-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #25323a;
+  border-radius: 6px;
+  background: #10181d;
+}
+
+.observability-kicker {
+  color: #7bd88f;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
