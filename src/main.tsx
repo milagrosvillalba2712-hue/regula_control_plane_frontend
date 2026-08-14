@@ -30,6 +30,8 @@ import {
   Menu,
   Progress,
   Row,
+  Segmented,
+  Select,
   Space,
   Statistic,
   Table,
@@ -42,6 +44,9 @@ import { controlPlaneTheme } from './theme';
 import './index.css';
 
 type SectionKey = 'dashboard' | 'empresas' | 'planes' | 'instalaciones' | 'catalogos';
+type TimeRangeKey = '5m' | '10m' | '30m' | '1h' | '3h';
+type ApiScopeKey = 'TODAS' | 'ADMIN' | 'CLIENTES' | 'ERRORES';
+type DashboardFocusKey = 'ERRORES' | 'LATENCIA' | 'TRAFICO' | 'EMPRESAS' | 'LICENCIAS';
 
 interface Session {
   token: string;
@@ -310,20 +315,73 @@ const DashboardSection = ({
   const trafficTrend = arrayValue(systemOverview.trafficTrend24h);
   const errorTelemetry = arrayValue(systemOverview.errorTelemetry);
   const companyUsage = arrayValue(systemOverview.companies);
+  const [range, setRange] = useState<TimeRangeKey>('1h');
+  const [apiScope, setApiScope] = useState<ApiScopeKey>('TODAS');
+  const [companyFilter, setCompanyFilter] = useState('TODAS');
+  const [statusFilter, setStatusFilter] = useState('TODOS');
+  const [focus, setFocus] = useState<DashboardFocusKey>('ERRORES');
+  const filteredTraffic = useMemo(() => trafficTrend.filter((row) => isWithinRange(row.bucket, range)), [range, trafficTrend]);
+  const filteredErrors = useMemo(() => errorTelemetry
+    .filter((row) => isWithinRange(row.fecha, range))
+    .filter((row) => statusFilter === 'TODOS' || String(row.status_http ?? row.statusCode ?? row.status ?? '') === statusFilter)
+    .filter((row) => apiScope === 'TODAS' || String(row.origen ?? '').toUpperCase().includes(apiScope === 'ADMIN' ? 'ADMIN' : apiScope === 'CLIENTES' ? 'CLIENT' : 'ERROR')), [apiScope, errorTelemetry, range, statusFilter]);
+  const statusCodes = useMemo(() => Array.from(new Set(errorTelemetry.map((row) => row.status_http ?? row.statusCode ?? row.status).filter(Boolean).map(String))).sort((a, b) => Number(a) - Number(b)), [errorTelemetry]);
+  const visibleCompanies = useMemo(() => companyFilter === 'TODAS' ? companyUsage : companyUsage.filter((row) => String(row.empresaId ?? row.empresa_id ?? row.codigo ?? row.nombre) === companyFilter), [companyFilter, companyUsage]);
+  const totalTraffic = filteredTraffic.reduce((sum, row) => sum + numberValue(row.api_admin) + numberValue(row.api_cliente), 0);
+  const totalApiErrors = filteredTraffic.reduce((sum, row) => sum + numberValue(row.api_errores), 0);
+  const errorRate = totalTraffic ? Math.round((totalApiErrors / totalTraffic) * 1000) / 10 : 0;
 
   return (
     <Space direction="vertical" size="large" style={{ width: '100%' }}>
-      <Alert
-        type="info"
-        showIcon
-        message="Control Plane Central De Regula"
-        description="Consola central para administrar empresas cliente, planes comerciales, instalaciones on-premise, arrendamientos de licencia, catálogos y telemetría agregada. En esta etapa se usa la empresa demo Financiera Santa Clara."
-      />
+      <Card size="small">
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }} wrap>
+            <div>
+              <Typography.Text strong>Vista De Observabilidad Multiempresa</Typography.Text>
+              <Typography.Paragraph type="secondary" style={{ margin: 0 }}>
+                Filtra por empresa, tiempo, API y HTTP para identificar si el problema es global, de un cliente o de un proveedor.
+              </Typography.Paragraph>
+            </div>
+            <Space wrap>
+              <Segmented<TimeRangeKey> size="small" value={range} onChange={setRange} options={timeRangeOptions} />
+              <Select
+                size="small"
+                value={companyFilter}
+                style={{ width: 190 }}
+                onChange={setCompanyFilter}
+                options={[
+                  { value: 'TODAS', label: 'Todas Las Empresas' },
+                  ...companyUsage.map((row) => ({ value: String(row.empresaId ?? row.empresa_id ?? row.codigo ?? row.nombre), label: String(row.nombre ?? row.empresa ?? row.codigo ?? 'Empresa') })),
+                ]}
+              />
+              <Select
+                size="small"
+                value={apiScope}
+                style={{ width: 170 }}
+                onChange={setApiScope}
+                options={[
+                  { value: 'TODAS', label: 'Todas Las APIs' },
+                  { value: 'ADMIN', label: 'API Administración' },
+                  { value: 'CLIENTES', label: 'API Clientes' },
+                  { value: 'ERRORES', label: 'Solo Errores' },
+                ]}
+              />
+              <Select
+                size="small"
+                value={statusFilter}
+                style={{ width: 130 }}
+                onChange={setStatusFilter}
+                options={[{ value: 'TODOS', label: 'Todos HTTP' }, ...statusCodes.map((code) => ({ value: code, label: `HTTP ${code}` }))]}
+              />
+            </Space>
+          </Space>
+        </Space>
+      </Card>
       <Row gutter={[16, 16]}>
-        <Metric title="Carga De Base De Datos" value={numberValue(database.loadPercent)} suffix="%" icon={<DatabaseOutlined />} loading={loading} />
-        <Metric title="Latencia API" value={numberValue(latency.avgMs)} suffix="ms" icon={<ApiOutlined />} loading={loading} />
-        <Metric title="Conexiones Activas" value={numberValue(systemOverview.activeConnections)} icon={<CloudServerOutlined />} loading={loading} />
-        <Metric title="Tiempo Activo Del Sistema" value={String(uptime.display || '-')} icon={<SafetyCertificateOutlined />} loading={loading} />
+        <SignalCard title="¿Está Funcionando?" value={String(uptime.display || '-')} label="Tiempo activo del Control Plane" status="success" detail={`${numberValue(database.loadPercent)}% carga DB · ${numberValue(systemOverview.activeConnections)} conexiones`} loading={loading} onOpen={() => setFocus('TRAFICO')} />
+        <SignalCard title="¿Dónde Falla?" value={filteredErrors.length} label={`Errores en ${rangeLabel(range)}`} status={filteredErrors.length > 0 ? 'danger' : 'success'} detail={`${errorRate}% de error estimado sobre tráfico filtrado.`} loading={loading} onOpen={() => setFocus('ERRORES')} />
+        <SignalCard title="¿Qué Tan Lento Está?" value={`${numberValue(latency.avgMs)}ms`} label={`P95 ${numberValue(latency.p95Ms)}ms`} status={numberValue(latency.avgMs) > 800 ? 'danger' : numberValue(latency.avgMs) > 300 ? 'warning' : 'success'} detail="Latencia agregada de APIs del Control Plane." loading={loading} onOpen={() => setFocus('LATENCIA')} />
+        <SignalCard title="¿A Quién Afecta?" value={visibleCompanies.length} label="Empresas dentro del filtro" status="success" detail={`${activeCompanies}/${companies.length} empresas activas.`} loading={loading} onOpen={() => setFocus('EMPRESAS')} />
       </Row>
       <Row gutter={[16, 16]}>
         <Metric title="Empresas Activas" value={activeCompanies} total={companies.length} icon={<BankOutlined />} loading={loading} />
@@ -333,9 +391,9 @@ const DashboardSection = ({
       </Row>
       <Row gutter={[16, 16]}>
         <Col xs={24} xl={15}>
-          <ChartCard title="Tendencia De Tráfico De APIs 24h" loading={loading} empty={trafficTrend.length === 0}>
+          <ChartCard title="Tráfico De APIs" loading={loading} empty={trafficTrend.length === 0}>
             <Line
-              data={trafficTrend.flatMap((row) => [
+              data={filteredTraffic.flatMap((row) => [
                 { hora: formatHour(row.bucket), tipo: 'API Administración', valor: numberValue(row.api_admin) },
                 { hora: formatHour(row.bucket), tipo: 'API Clientes', valor: numberValue(row.api_cliente) },
                 { hora: formatHour(row.bucket), tipo: 'Errores API', valor: numberValue(row.api_errores) },
@@ -411,9 +469,10 @@ const DashboardSection = ({
           <DataCard title="Empresas Clientes" rows={companies} loading={loading} />
         </Col>
         <Col xs={24} lg={12}>
-          <DataCard title="Consumo Por Empresa" rows={companyUsage} loading={loading} />
+          <DataCard title="Consumo Por Empresa" rows={visibleCompanies} loading={loading} />
         </Col>
       </Row>
+      <DataCard title={`Drill-Down: ${focusLabel(focus)}`} rows={focusRows(focus, filteredErrors, visibleCompanies, filteredTraffic)} loading={loading} description="Detalle filtrado que permite pasar de una señal agregada al evento, empresa o bucket horario que explica el comportamiento." />
     </Space>
   );
 };
@@ -432,6 +491,76 @@ const Metric = ({ title, value, total, suffix, icon, loading }: {
     </Card>
   </Col>
 );
+
+const SignalCard = ({ title, value, label, status, detail, loading, onOpen }: {
+  title: string;
+  value: string | number;
+  label: string;
+  status: 'success' | 'warning' | 'danger';
+  detail: string;
+  loading: boolean;
+  onOpen: () => void;
+}) => {
+  const color = status === 'danger' ? '#cf1322' : status === 'warning' ? '#d48806' : '#237804';
+  return (
+    <Col xs={24} md={12} xl={6}>
+      <Card size="small" loading={loading} hoverable onClick={onOpen}>
+        <Space direction="vertical" size={4} style={{ width: '100%' }}>
+          <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+            <Typography.Text strong>{title}</Typography.Text>
+            <Tag color={status === 'danger' ? 'red' : status === 'warning' ? 'gold' : 'green'}>{status === 'danger' ? 'Atención' : status === 'warning' ? 'Revisar' : 'OK'}</Tag>
+          </Space>
+          <Typography.Title level={2} style={{ margin: 0, color }}>{value}</Typography.Title>
+          <Typography.Text>{label}</Typography.Text>
+          <Typography.Text type="secondary">{detail}</Typography.Text>
+        </Space>
+      </Card>
+    </Col>
+  );
+};
+
+const timeRangeOptions: Array<{ label: string; value: TimeRangeKey }> = [
+  { label: '5min', value: '5m' },
+  { label: '10min', value: '10m' },
+  { label: '30min', value: '30m' },
+  { label: '1hr', value: '1h' },
+  { label: '3hrs', value: '3h' },
+];
+
+const rangeLabel = (range: TimeRangeKey) => timeRangeOptions.find((option) => option.value === range)?.label || '1hr';
+
+const rangeStart = (range: TimeRangeKey) => {
+  const now = Date.now();
+  const minutes = range === '5m' ? 5 : range === '10m' ? 10 : range === '30m' ? 30 : range === '1h' ? 60 : 180;
+  return now - minutes * 60 * 1000;
+};
+
+const isWithinRange = (raw: unknown, range: TimeRangeKey) => {
+  if (!raw) return false;
+  const value = new Date(String(raw)).getTime();
+  return Number.isFinite(value) && value >= rangeStart(range);
+};
+
+const focusLabel = (focus: DashboardFocusKey) => ({
+  ERRORES: 'Errores Reales',
+  LATENCIA: 'Eventos De Latencia',
+  TRAFICO: 'Tráfico De APIs',
+  EMPRESAS: 'Empresas Afectadas',
+  LICENCIAS: 'Licencias',
+}[focus]);
+
+const focusRows = (
+  focus: DashboardFocusKey,
+  errors: Record<string, unknown>[],
+  companies: Record<string, unknown>[],
+  traffic: Record<string, unknown>[],
+) => {
+  if (focus === 'EMPRESAS') return companies;
+  if (focus === 'TRAFICO') return traffic;
+  if (focus === 'LATENCIA') return errors.filter((row) => numberValue(row.duracion_ms ?? row.duracionMs) >= 300);
+  if (focus === 'LICENCIAS') return companies.filter((row) => `${row.estado ?? ''}`.toUpperCase().includes('LICEN'));
+  return errors;
+};
 
 const ChartCard = ({ title, loading, empty, children }: {
   title: string;
