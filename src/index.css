@@ -1,0 +1,36 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  background: #f7f9fc;
+  color: #1a2a36;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  text-decoration: none;
+}
+
+.control-plane-brand {
+  color: #ffffff;
+  padding: 22px 20px;
+}
+
+.control-plane-brand__title {
+  color: #ffffff !important;
+  margin: 0 !important;
+}
+
+.control-plane-card-grid {
+  width: 100%;
+}

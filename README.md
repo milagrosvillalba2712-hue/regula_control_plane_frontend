@@ -23,3 +23,8 @@ Variables:
 VITE_CONTROL_PLANE_ADMIN_KEY=...
 ```
 
+## Validación
+
+```powershell
+npm run build
+```
