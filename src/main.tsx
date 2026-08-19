@@ -10,8 +10,10 @@ import {
   FileTextOutlined,
   LockOutlined,
   LogoutOutlined,
+  MailOutlined,
   ReloadOutlined,
   SafetyCertificateOutlined,
+  ShoppingCartOutlined,
   UserOutlined,
 } from '@ant-design/icons';
 import { Column, Line, Pie } from '@ant-design/charts';
@@ -46,7 +48,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { controlPlaneTheme } from './theme';
 import './index.css';
 
-type SectionKey = 'dashboard' | 'empresas' | 'planes' | 'instalaciones' | 'catalogos' | 'documentos';
+type SectionKey = 'dashboard' | 'empresas' | 'planes' | 'instalaciones' | 'catalogos' | 'documentos' | 'invitaciones' | 'solicitudes-roles';
 type TimeRangeKey = '5m' | '10m' | '30m' | '1h' | '3h';
 type ApiScopeKey = 'TODAS' | 'ADMIN' | 'CLIENTES' | 'ERRORES';
 type DashboardFocusKey = 'ERRORES' | 'LATENCIA' | 'TRAFICO' | 'EMPRESAS' | 'LICENCIAS';
@@ -64,6 +66,8 @@ interface LoadErrors {
   catalogos?: string;
   overview?: string;
   documentos?: string;
+  invitaciones?: string;
+  solicitudes?: string;
 }
 
 const SESSION_KEY = 'regula-control-plane-session';
@@ -163,18 +167,22 @@ const ControlPlaneConsole = ({ session, onLogout }: { session: Session; onLogout
   const [manifest, setManifest] = useState<Record<string, unknown>>({});
   const [systemOverview, setSystemOverview] = useState<Record<string, unknown>>({});
   const [documents, setDocuments] = useState<Record<string, unknown>[]>([]);
+  const [invitaciones, setInvitaciones] = useState<Record<string, unknown>[]>([]);
+  const [solicitudesRoles, setSolicitudesRoles] = useState<Record<string, unknown>[]>([]);
   const [loadErrors, setLoadErrors] = useState<LoadErrors>({});
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
     setLoading(true);
-    const [companiesResult, plansResult, installationsResult, manifestResult, overviewResult, documentosResult] = await Promise.all([
+    const [companiesResult, plansResult, installationsResult, manifestResult, overviewResult, documentosResult, invitacionesResult, solicitudesResult] = await Promise.all([
       safeLoad('empresas', () => apiRequest<Record<string, unknown>[]>('/api/admin/companies', session), []),
       safeLoad('planes', () => apiRequest<Record<string, unknown>[]>('/api/admin/plans', session), []),
       safeLoad('instalaciones', () => apiRequest<Record<string, unknown>[]>('/api/admin/installations', session), []),
       safeLoad('catalogos', () => apiRequest<Record<string, unknown>>('/api/v1/catalogs/manifest', session), {}),
       safeLoad('overview', () => apiRequest<Record<string, unknown>>('/api/admin/system-overview', session), {}),
       safeLoad('documentos', () => apiRequest<Record<string, unknown>[]>('/api/admin/documentos-legal', session), []),
+      safeLoad('invitaciones', () => apiRequest<Record<string, unknown>[]>('/api/admin/backend/invitaciones', session), []),
+      safeLoad('solicitudes', () => apiRequest<Record<string, unknown>[]>('/api/admin/backend/solicitud-roles', session), []),
     ]);
     setCompanies(companiesResult.data);
     setPlans(plansResult.data);
@@ -182,6 +190,8 @@ const ControlPlaneConsole = ({ session, onLogout }: { session: Session; onLogout
     setManifest(manifestResult.data);
     setSystemOverview(overviewResult.data);
     setDocuments(documentosResult.data);
+    setInvitaciones(invitacionesResult.data);
+    setSolicitudesRoles(solicitudesResult.data);
     setLoadErrors({
       empresas: companiesResult.error,
       planes: plansResult.error,
@@ -189,6 +199,8 @@ const ControlPlaneConsole = ({ session, onLogout }: { session: Session; onLogout
       catalogos: manifestResult.error,
       overview: overviewResult.error,
       documentos: documentosResult.error,
+      invitaciones: invitacionesResult.error,
+      solicitudes: solicitudesResult.error,
     });
     setLoading(false);
   };
@@ -222,6 +234,8 @@ const ControlPlaneConsole = ({ session, onLogout }: { session: Session; onLogout
             { key: 'instalaciones', icon: <SafetyCertificateOutlined />, label: 'Instalaciones' },
             { key: 'catalogos', icon: <DatabaseOutlined />, label: 'Catálogos' },
             { key: 'documentos', icon: <FileTextOutlined />, label: 'Documentos Legales' },
+            { key: 'invitaciones', icon: <MailOutlined />, label: 'Invitaciones' },
+            { key: 'solicitudes-roles', icon: <ShoppingCartOutlined />, label: 'Solicitudes de Roles' },
           ]}
         />
       </Layout.Sider>
@@ -269,6 +283,12 @@ const ControlPlaneConsole = ({ session, onLogout }: { session: Session; onLogout
             )}
             {section === 'documentos' && (
               <DocumentosLegalesSection session={session} rows={documents} loading={loading} onReload={load} />
+            )}
+            {section === 'invitaciones' && (
+              <DataSection title="Invitaciones Enviadas" rows={invitaciones} loading={loading} description="Invitaciones de usuarios generadas desde las instalaciones del backend." />
+            )}
+            {section === 'solicitudes-roles' && (
+              <DataSection title="Solicitudes de Roles Adicionales" rows={solicitudesRoles} loading={loading} description="Solicitudes de compra de roles adicionales realizadas por las empresas." />
             )}
           </Space>
         </Layout.Content>
@@ -859,6 +879,8 @@ const sectionTitle = (section: SectionKey) => ({
   instalaciones: 'Instalaciones',
   catalogos: 'Catálogos',
   documentos: 'Documentos Legales',
+  invitaciones: 'Invitaciones',
+  'solicitudes-roles': 'Solicitudes de Roles',
 }[section]);
 
 const titleize = (value: string) => value
