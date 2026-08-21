@@ -75,9 +75,9 @@ const SESSION_KEY = 'regula-control-plane-session';
 const ADMIN_API_KEY = import.meta.env.VITE_CONTROL_PLANE_ADMIN_KEY || 'change-me-admin';
 const ADMIN_EMAIL_HINT = import.meta.env.VITE_CONTROL_PLANE_ADMIN_EMAIL || 'admin@regula.local';
 
-const apiRequest = async <T,>(path: string, session?: Session | null, body?: unknown): Promise<T> => {
+const apiRequest = async <T,>(path: string, session?: Session | null, body?: unknown, method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'): Promise<T> => {
   const response = await fetch(path, {
-    method: body ? 'POST' : 'GET',
+    method: method || (body ? 'POST' : 'GET'),
     headers: {
       'Content-Type': 'application/json',
       'X-API-Key': ADMIN_API_KEY,
@@ -770,7 +770,7 @@ const DocumentosLegalesSection = ({ session, rows, loading, onReload }: {
       const values = await form.validateFields();
       setSaving(true);
       if (editingId) {
-        await apiRequest(`/api/admin/documentos-legal/${editingId}`, session, values);
+        await apiRequest(`/api/admin/documentos-legal/${editingId}`, session, values, 'PUT');
         message.success('Documento actualizado');
       } else {
         await apiRequest('/api/admin/documentos-legal', session, values);
@@ -799,7 +799,7 @@ const DocumentosLegalesSection = ({ session, rows, loading, onReload }: {
 
   const handleToggleActivo = async (record: Record<string, unknown>) => {
     try {
-      await apiRequest(`/api/admin/documentos-legal/${record.id}`, session, { activo: !record.activo });
+      await apiRequest(`/api/admin/documentos-legal/${record.id}`, session, { activo: !record.activo }, 'PUT');
       message.success(record.activo ? 'Documento desactivado' : 'Documento activado');
       onReload();
     } catch (error) {
