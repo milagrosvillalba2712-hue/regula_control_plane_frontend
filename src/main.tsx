@@ -7,10 +7,13 @@ import {
   CloudServerOutlined,
   CreditCardOutlined,
   DatabaseOutlined,
+  FileTextOutlined,
   LockOutlined,
   LogoutOutlined,
+  MailOutlined,
   ReloadOutlined,
   SafetyCertificateOutlined,
+  ShoppingCartOutlined,
   UserOutlined,
 } from '@ant-design/icons';
 import { Column, Line, Pie } from '@ant-design/charts';
@@ -28,6 +31,8 @@ import {
   Input,
   Layout,
   Menu,
+  Modal,
+  Popconfirm,
   Progress,
   Row,
   Segmented,
@@ -43,7 +48,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { controlPlaneTheme } from './theme';
 import './index.css';
 
-type SectionKey = 'dashboard' | 'empresas' | 'planes' | 'instalaciones' | 'catalogos';
+type SectionKey = 'dashboard' | 'empresas' | 'planes' | 'pagos' | 'instalaciones' | 'catalogos' | 'documentos' | 'invitaciones' | 'solicitudes-roles';
 type TimeRangeKey = '5m' | '10m' | '30m' | '1h' | '3h';
 type ApiScopeKey = 'TODAS' | 'ADMIN' | 'CLIENTES' | 'ERRORES';
 type DashboardFocusKey = 'ERRORES' | 'LATENCIA' | 'TRAFICO' | 'EMPRESAS' | 'LICENCIAS';
@@ -60,15 +65,19 @@ interface LoadErrors {
   instalaciones?: string;
   catalogos?: string;
   overview?: string;
+  documentos?: string;
+  pagos?: string;
+  invitaciones?: string;
+  solicitudes?: string;
 }
 
 const SESSION_KEY = 'regula-control-plane-session';
 const ADMIN_API_KEY = import.meta.env.VITE_CONTROL_PLANE_ADMIN_KEY || 'change-me-admin';
 const ADMIN_EMAIL_HINT = import.meta.env.VITE_CONTROL_PLANE_ADMIN_EMAIL || 'admin@regula.local';
 
-const apiRequest = async <T,>(path: string, session?: Session | null, body?: unknown): Promise<T> => {
+const apiRequest = async <T,>(path: string, session?: Session | null, body?: unknown, method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'): Promise<T> => {
   const response = await fetch(path, {
-    method: body ? 'POST' : 'GET',
+    method: method || (body ? 'POST' : 'GET'),
     headers: {
       'Content-Type': 'application/json',
       'X-API-Key': ADMIN_API_KEY,
@@ -158,29 +167,48 @@ const ControlPlaneConsole = ({ session, onLogout }: { session: Session; onLogout
   const [installations, setInstallations] = useState<Record<string, unknown>[]>([]);
   const [manifest, setManifest] = useState<Record<string, unknown>>({});
   const [systemOverview, setSystemOverview] = useState<Record<string, unknown>>({});
+  const [documents, setDocuments] = useState<Record<string, unknown>[]>([]);
+  const [pagos, setPagos] = useState<Record<string, unknown>[]>([]);
+  const [invitaciones, setInvitaciones] = useState<Record<string, unknown>[]>([]);
+  const [solicitudesRoles, setSolicitudesRoles] = useState<Record<string, unknown>[]>([]);
   const [loadErrors, setLoadErrors] = useState<LoadErrors>({});
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
     setLoading(true);
-    const [companiesResult, plansResult, installationsResult, manifestResult, overviewResult] = await Promise.all([
+    const [companiesResult, plansResult, installationsResult, manifestResult, overviewResult, documentosResult, invitacionesResult, solicitudesResult] = await Promise.all([
       safeLoad('empresas', () => apiRequest<Record<string, unknown>[]>('/api/admin/companies', session), []),
       safeLoad('planes', () => apiRequest<Record<string, unknown>[]>('/api/admin/plans', session), []),
       safeLoad('instalaciones', () => apiRequest<Record<string, unknown>[]>('/api/admin/installations', session), []),
       safeLoad('catalogos', () => apiRequest<Record<string, unknown>>('/api/v1/catalogs/manifest', session), {}),
       safeLoad('overview', () => apiRequest<Record<string, unknown>>('/api/admin/system-overview', session), {}),
+      safeLoad('documentos', () => apiRequest<Record<string, unknown>[]>('/api/admin/documentos-legal', session), []),
+      safeLoad('invitaciones', () => apiRequest<Record<string, unknown>[]>('/api/admin/backend/invitaciones', session), []),
+      safeLoad('solicitudes', () => apiRequest<Record<string, unknown>[]>('/api/admin/backend/solicitud-roles', session), []),
     ]);
     setCompanies(companiesResult.data);
     setPlans(plansResult.data);
     setInstallations(installationsResult.data);
     setManifest(manifestResult.data);
     setSystemOverview(overviewResult.data);
+    setDocuments(documentosResult.data);
+    setInvitaciones(invitacionesResult.data);
+    setSolicitudesRoles(solicitudesResult.data);
+    const empresaPagosId = companiesResult.data[0]?.id;
+    const pagosResult = empresaPagosId
+      ? await safeLoad('pagos', () => apiRequest<Record<string, unknown>[]>(`/api/admin/payments?empresaId=${empresaPagosId}`, session), [])
+      : { data: [], error: undefined };
+    setPagos(pagosResult.data);
     setLoadErrors({
       empresas: companiesResult.error,
       planes: plansResult.error,
       instalaciones: installationsResult.error,
       catalogos: manifestResult.error,
       overview: overviewResult.error,
+      documentos: documentosResult.error,
+      pagos: pagosResult.error,
+      invitaciones: invitacionesResult.error,
+      solicitudes: solicitudesResult.error,
     });
     setLoading(false);
   };
@@ -211,8 +239,12 @@ const ControlPlaneConsole = ({ session, onLogout }: { session: Session; onLogout
             { key: 'dashboard', icon: <CloudServerOutlined />, label: 'Tablero' },
             { key: 'empresas', icon: <BankOutlined />, label: 'Empresas' },
             { key: 'planes', icon: <CreditCardOutlined />, label: 'Planes' },
+            { key: 'pagos', icon: <CreditCardOutlined />, label: 'Pagos Stripe' },
             { key: 'instalaciones', icon: <SafetyCertificateOutlined />, label: 'Instalaciones' },
             { key: 'catalogos', icon: <DatabaseOutlined />, label: 'Catálogos' },
+            { key: 'documentos', icon: <FileTextOutlined />, label: 'Documentos Legales' },
+            { key: 'invitaciones', icon: <MailOutlined />, label: 'Invitaciones' },
+            { key: 'solicitudes-roles', icon: <ShoppingCartOutlined />, label: 'Solicitudes de Roles' },
           ]}
         />
       </Layout.Sider>
@@ -249,6 +281,7 @@ const ControlPlaneConsole = ({ session, onLogout }: { session: Session; onLogout
             )}
             {section === 'empresas' && <DataSection title="Empresas Clientes" rows={companies} loading={loading} />}
             {section === 'planes' && <DataSection title="Planes Comerciales" rows={plans} loading={loading} />}
+            {section === 'pagos' && <DataSection title="Pagos De Clientes" rows={pagos} loading={loading} description="Pagos registrados en el Control Plane. Las filas Stripe se reconcilian por Checkout Session, Subscription, Invoice y webhooks firmados." />}
             {section === 'instalaciones' && <DataSection title="Instalaciones On-Premise" rows={installations} loading={loading} />}
             {section === 'catalogos' && (
               <DataSection
@@ -257,6 +290,15 @@ const ControlPlaneConsole = ({ session, onLogout }: { session: Session; onLogout
                 loading={loading}
                 description={`Versión paquete: ${String(manifest.packageVersion || '-')}`}
               />
+            )}
+            {section === 'documentos' && (
+              <DocumentosLegalesSection session={session} rows={documents} loading={loading} onReload={load} />
+            )}
+            {section === 'invitaciones' && (
+              <DataSection title="Invitaciones Enviadas" rows={invitaciones} loading={loading} description="Invitaciones de usuarios generadas desde las instalaciones del backend." />
+            )}
+            {section === 'solicitudes-roles' && (
+              <DataSection title="Solicitudes de Roles Adicionales" rows={solicitudesRoles} loading={loading} description="Solicitudes de compra de roles adicionales realizadas por las empresas." />
             )}
           </Space>
         </Layout.Content>
@@ -688,12 +730,168 @@ const percentage = (value: number, total: number) => {
   return Math.round((value / total) * 100);
 };
 
+const DocumentosLegalesSection = ({ session, rows, loading, onReload }: {
+  session: Session;
+  rows: Record<string, unknown>[];
+  loading: boolean;
+  onReload: () => void;
+}) => {
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [form] = Form.useForm();
+  const [saving, setSaving] = useState(false);
+
+  const TIPO_OPTIONS = [
+    { value: 'TERMINOS', label: 'Términos y Condiciones' },
+    { value: 'POLITICA_PRIVACIDAD', label: 'Política de Privacidad' },
+  ];
+
+  const openCreate = () => {
+    setEditingId(null);
+    form.resetFields();
+    form.setFieldsValue({ tipo: 'TERMINOS', activo: true });
+    setModalOpen(true);
+  };
+
+  const openEdit = (record: Record<string, unknown>) => {
+    setEditingId(Number(record.id));
+    form.setFieldsValue({
+      tipo: record.tipo,
+      version: record.version,
+      titulo: record.titulo,
+      contenido: record.contenido,
+      urlDocumento: record.urlDocumento,
+    });
+    setModalOpen(true);
+  };
+
+  const handleSave = async () => {
+    try {
+      const values = await form.validateFields();
+      setSaving(true);
+      if (editingId) {
+        await apiRequest(`/api/admin/documentos-legal/${editingId}`, session, values, 'PUT');
+        message.success('Documento actualizado');
+      } else {
+        await apiRequest('/api/admin/documentos-legal', session, values);
+        message.success('Documento creado');
+      }
+      setModalOpen(false);
+      onReload();
+    } catch (error) {
+      if (error instanceof Error && error.message !== 'Validation failed') {
+        message.error(error.message);
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handlePublicar = async (id: number) => {
+    try {
+      await apiRequest(`/api/admin/documentos-legal/${id}/publicar`, session, {});
+      message.success('Documento publicado');
+      onReload();
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : 'Error al publicar');
+    }
+  };
+
+  const handleToggleActivo = async (record: Record<string, unknown>) => {
+    try {
+      await apiRequest(`/api/admin/documentos-legal/${record.id}`, session, { activo: !record.activo }, 'PUT');
+      message.success(record.activo ? 'Documento desactivado' : 'Documento activado');
+      onReload();
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : 'Error al cambiar estado');
+    }
+  };
+
+  const columns: ColumnsType<Record<string, unknown>> = [
+    { title: 'Tipo', dataIndex: 'tipo', key: 'tipo',
+      render: (tipo: string) => <Tag color={tipo === 'TERMINOS' ? 'blue' : 'green'}>{tipo === 'TERMINOS' ? 'Términos' : 'Privacidad'}</Tag> },
+    { title: 'Versión', dataIndex: 'version', key: 'version', width: 80 },
+    { title: 'Título', dataIndex: 'titulo', key: 'titulo', ellipsis: true },
+    { title: 'Estado', dataIndex: 'activo', key: 'activo', width: 100,
+      render: (activo: boolean) => <Tag color={activo ? 'green' : 'default'}>{activo ? 'Activo' : 'Inactivo'}</Tag> },
+    { title: 'Publicado', dataIndex: 'fechaPublicacion', key: 'fechaPublicacion', width: 120,
+      render: (fp: unknown) => fp ? new Date(String(fp)).toLocaleDateString('es-PY') : <Tag>Pendiente</Tag> },
+    { title: 'Acciones', key: 'acciones', width: 200,
+      render: (_: unknown, record: Record<string, unknown>) => (
+        <Space>
+          <Button size="small" onClick={() => openEdit(record)}>Editar</Button>
+          {!record.fechaPublicacion && (
+            <Popconfirm title="¿Publicar este documento?" onConfirm={() => handlePublicar(Number(record.id))}>
+              <Button size="small" type="primary">Publicar</Button>
+            </Popconfirm>
+          )}
+          <Popconfirm title={record.activo ? '¿Desactivar?' : '¿Activar?'} onConfirm={() => handleToggleActivo(record)}>
+            <Button size="small" danger={!!record.activo}>{record.activo ? 'Desactivar' : 'Activar'}</Button>
+          </Popconfirm>
+        </Space>
+      ),
+    },
+  ];
+
+  return (
+    <>
+      <Card title="Documentos Legales" extra={<Button type="primary" onClick={openCreate}>Nuevo Documento</Button>}>
+        <Table
+          dataSource={rows}
+          columns={columns}
+          rowKey="id"
+          loading={loading}
+          pagination={false}
+          size="middle"
+        />
+      </Card>
+      <Modal
+        title={editingId ? 'Editar Documento Legal' : 'Nuevo Documento Legal'}
+        open={modalOpen}
+        onCancel={() => setModalOpen(false)}
+        onOk={handleSave}
+        confirmLoading={saving}
+        width={720}
+        okText="Guardar"
+      >
+        <Form form={form} layout="vertical">
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="tipo" label="Tipo" rules={[{ required: true }]}>
+                <Select options={TIPO_OPTIONS} disabled={!!editingId} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="version" label="Versión" rules={[{ required: true }]}>
+                <Input type="number" disabled={!!editingId} />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item name="titulo" label="Título" rules={[{ required: true }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item name="contenido" label="Contenido" rules={[{ required: true }]}>
+            <Input.TextArea rows={12} />
+          </Form.Item>
+          <Form.Item name="urlDocumento" label="URL alternativa (opcional)">
+            <Input />
+          </Form.Item>
+        </Form>
+      </Modal>
+    </>
+  );
+};
+
 const sectionTitle = (section: SectionKey) => ({
   dashboard: 'Tablero',
   empresas: 'Empresas',
   planes: 'Planes Comerciales',
+  pagos: 'Pagos Stripe',
   instalaciones: 'Instalaciones',
   catalogos: 'Catálogos',
+  documentos: 'Documentos Legales',
+  invitaciones: 'Invitaciones',
+  'solicitudes-roles': 'Solicitudes de Roles',
 }[section]);
 
 const titleize = (value: string) => value
