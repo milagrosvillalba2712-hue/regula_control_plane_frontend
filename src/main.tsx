@@ -48,7 +48,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { controlPlaneTheme } from './theme';
 import './index.css';
 
-type SectionKey = 'dashboard' | 'empresas' | 'planes' | 'instalaciones' | 'catalogos' | 'documentos' | 'invitaciones' | 'solicitudes-roles';
+type SectionKey = 'dashboard' | 'empresas' | 'planes' | 'pagos' | 'instalaciones' | 'catalogos' | 'documentos' | 'invitaciones' | 'solicitudes-roles';
 type TimeRangeKey = '5m' | '10m' | '30m' | '1h' | '3h';
 type ApiScopeKey = 'TODAS' | 'ADMIN' | 'CLIENTES' | 'ERRORES';
 type DashboardFocusKey = 'ERRORES' | 'LATENCIA' | 'TRAFICO' | 'EMPRESAS' | 'LICENCIAS';
@@ -66,6 +66,7 @@ interface LoadErrors {
   catalogos?: string;
   overview?: string;
   documentos?: string;
+  pagos?: string;
   invitaciones?: string;
   solicitudes?: string;
 }
@@ -167,6 +168,7 @@ const ControlPlaneConsole = ({ session, onLogout }: { session: Session; onLogout
   const [manifest, setManifest] = useState<Record<string, unknown>>({});
   const [systemOverview, setSystemOverview] = useState<Record<string, unknown>>({});
   const [documents, setDocuments] = useState<Record<string, unknown>[]>([]);
+  const [pagos, setPagos] = useState<Record<string, unknown>[]>([]);
   const [invitaciones, setInvitaciones] = useState<Record<string, unknown>[]>([]);
   const [solicitudesRoles, setSolicitudesRoles] = useState<Record<string, unknown>[]>([]);
   const [loadErrors, setLoadErrors] = useState<LoadErrors>({});
@@ -192,6 +194,11 @@ const ControlPlaneConsole = ({ session, onLogout }: { session: Session; onLogout
     setDocuments(documentosResult.data);
     setInvitaciones(invitacionesResult.data);
     setSolicitudesRoles(solicitudesResult.data);
+    const empresaPagosId = companiesResult.data[0]?.id;
+    const pagosResult = empresaPagosId
+      ? await safeLoad('pagos', () => apiRequest<Record<string, unknown>[]>(`/api/admin/payments?empresaId=${empresaPagosId}`, session), [])
+      : { data: [], error: undefined };
+    setPagos(pagosResult.data);
     setLoadErrors({
       empresas: companiesResult.error,
       planes: plansResult.error,
@@ -199,6 +206,7 @@ const ControlPlaneConsole = ({ session, onLogout }: { session: Session; onLogout
       catalogos: manifestResult.error,
       overview: overviewResult.error,
       documentos: documentosResult.error,
+      pagos: pagosResult.error,
       invitaciones: invitacionesResult.error,
       solicitudes: solicitudesResult.error,
     });
@@ -231,6 +239,7 @@ const ControlPlaneConsole = ({ session, onLogout }: { session: Session; onLogout
             { key: 'dashboard', icon: <CloudServerOutlined />, label: 'Tablero' },
             { key: 'empresas', icon: <BankOutlined />, label: 'Empresas' },
             { key: 'planes', icon: <CreditCardOutlined />, label: 'Planes' },
+            { key: 'pagos', icon: <CreditCardOutlined />, label: 'Pagos Stripe' },
             { key: 'instalaciones', icon: <SafetyCertificateOutlined />, label: 'Instalaciones' },
             { key: 'catalogos', icon: <DatabaseOutlined />, label: 'Catálogos' },
             { key: 'documentos', icon: <FileTextOutlined />, label: 'Documentos Legales' },
@@ -272,6 +281,7 @@ const ControlPlaneConsole = ({ session, onLogout }: { session: Session; onLogout
             )}
             {section === 'empresas' && <DataSection title="Empresas Clientes" rows={companies} loading={loading} />}
             {section === 'planes' && <DataSection title="Planes Comerciales" rows={plans} loading={loading} />}
+            {section === 'pagos' && <DataSection title="Pagos De Clientes" rows={pagos} loading={loading} description="Pagos registrados en el Control Plane. Las filas Stripe se reconcilian por Checkout Session, Subscription, Invoice y webhooks firmados." />}
             {section === 'instalaciones' && <DataSection title="Instalaciones On-Premise" rows={installations} loading={loading} />}
             {section === 'catalogos' && (
               <DataSection
@@ -876,6 +886,7 @@ const sectionTitle = (section: SectionKey) => ({
   dashboard: 'Tablero',
   empresas: 'Empresas',
   planes: 'Planes Comerciales',
+  pagos: 'Pagos Stripe',
   instalaciones: 'Instalaciones',
   catalogos: 'Catálogos',
   documentos: 'Documentos Legales',
